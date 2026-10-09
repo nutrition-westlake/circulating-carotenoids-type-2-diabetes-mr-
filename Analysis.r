@@ -1,3 +1,14 @@
+## GWAS ANALYSIS
+snptest \
+  -data <genotype_file> <sample_file> \
+  -pheno <phenotype_name> \
+  -cov_names PC1 PC2 PC3 PC4 PC5 PC6 PC7 PC8 PC9 PC10 \
+  -frequentist 1 \
+  -method expected \
+  -o <output_file>
+
+
+### MR ANALYSIS
 ##R 4.0.3
 library(MendelianRandomization)
 library(TwoSampleMR)
