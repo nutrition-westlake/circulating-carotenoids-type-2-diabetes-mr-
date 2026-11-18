@@ -1,0 +1,135 @@
+## A Stata DO file
+
+##   Description: Prepare Phenotype & Covariate Sample File for SNPTEST
+##   Trait:       Lutein (as example)
+
+
+#   Assumptions:
+
+#    1. Sample order matches the GWAS genotype file exactly.
+
+#    2. First three columns are ID_1, ID_2, and missing.
+
+#    3. PC1-PC10 contain no missing values.
+
+#    4. Samples that failed QC were flagged: flag_failQC (0=pass, 1=failed)
+
+
+##version 17.0
+
+clear all
+
+set more off
+
+ 
+
+/* Load my dataset here */
+
+use mydataset.dta, clear
+
+ 
+
+/* export samples list that failed QC */
+
+export delimited ID_1 if flag_failQC == 1 using Excl_samples.txt, delimiter(" ") novarnames replace
+
+ 
+
+/* Log-transform the trait */
+
+generate log_lutein = log(lutein)
+
+ 
+
+/* Fit linear regression adjusted for age, sex, and study centre for samples passing QC */
+
+regress log_lutein age i.sex i.centre if flag_failQC == 0
+
+ 
+
+/* Generate standardized residuals for regression estimation sample */
+
+predict std_res_log_lutein if e(sample), rstandard
+
+ 
+
+/* Recode missing values to -999 for SNPTEST */
+
+replace std_res_log_lutein = -999 if std_res_log_lutein == .
+
+ 
+
+/* export space-delimited file ready for SNPTEST  */
+
+export delimited ID_1 ID_2 missing PC1-PC10 std_res_log_lutein using phenotype.sample, delimiter(" ") nolabel replace
+
+ 
+
+/* Add column type line to meet the SNPTEST data input format request.  Note, the command below works in Linux platform */
+
+!sed -i '2i 0 0 0 C C C C C C C C C C P' phenotype.sample
+
+ 
+
+ 
+
+## 2.       Linux shell script
+
+# ==============================================================================
+
+
+# Description: Performs single-variant GWAS on Chromosome 1-22 using SNPTEST v2.5.6
+
+# Phenotype:   std_res_log_${trait} (standardized residuals of log-transformed  individual carotene)
+
+# Covariates:  All covariates in phenotype file (first 10 genetic principal components PC1-PC10)
+
+# ==============================================================================
+
+ 
+
+# Define variables
+
+CHR=1
+
+BGEN_FILE="chr${CHR}.bgen"
+
+SAMPLE_FILE="phenotype.sample"
+
+EXCL_FILE="Excl_samples.txt"
+
+OUT_FILE="output_chr${CHR}.txt"
+
+LOG_FILE="snptest_chr${CHR}.log"
+
+ 
+
+# Run SNPTEST
+
+snptest_v2.5.6 \
+
+    -data "${BGEN_FILE}" "${SAMPLE_FILE}" \
+
+    -o "${OUT_FILE}" \
+
+    -log "${LOG_FILE}" \
+
+    -exclude_samples "${EXCL_FILE}" \
+
+    -pheno std_res_log_${trait} \
+
+    -frequentist 1 \
+
+    -method expected \
+
+    -use_raw_phenotypes \
+
+    -use_raw_covariates \
+
+    -cov_all \
+
+    -hwe \
+
+    -missing_code -999
+
+ 
